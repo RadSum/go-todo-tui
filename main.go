@@ -74,10 +74,32 @@ func (m *model) HandleKey(key string) {
 			} else {
 				t.selected[t.cursor] = struct{}{}
 			}
+
+		case "delete":
+			if len(t.choices) == 1 {
+				t.choices = []string{}
+				delete(t.selected, 0)
+				return
+			}
+			new_todos := make([]string, len(t.choices)-1)
+			for i := 0; i < len(t.choices); i++ {
+				if i < t.cursor {
+					new_todos[i] = t.choices[i]
+				}
+				if i > t.cursor {
+					new_todos[i-1] = t.choices[i]
+					if _, ok := t.selected[i]; ok {
+						t.selected[i-1] = struct{}{}
+					}
+					delete(t.selected, i)
+				}
+			}
+			t.choices = new_todos
+			t.cursor = max(t.cursor-1, 0)
 		}
 	} else {
 		if key == "enter" && len(m.add_struct.text) > 0 {
-			m.todo_struct.choices = append(m.todo_struct.choices, string(m.add_struct.text))
+			m.todo_struct.choices = append(m.todo_struct.choices, strings.TrimRight(string(m.add_struct.text), " "))
 			m.add_struct.text = []rune{}
 			m.add_struct.text_length = len("Input: ")
 		}
@@ -131,7 +153,7 @@ func (m model) View() string {
 	s += strings.Repeat("-", HEADER_LEN)
 	s += "\n\n"
 	if m.menu_active == todo_active {
-		s += "What should we buy at the market\n\n"
+		s += "What should I do?\n\n"
 
 		for i, choice := range m.todo_struct.choices {
 			cursor := " "
@@ -145,6 +167,9 @@ func (m model) View() string {
 			}
 
 			s += fmt.Sprintf("%s [%s] %s\n", cursor, checked, choice)
+		}
+		if len(m.todo_struct.choices) == 0 {
+			s += "There is currently nothing to do!!\n"
 		}
 	} else {
 		s += "Add a new todo:\n\n"
