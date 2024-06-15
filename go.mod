@@ -1,4 +1,4 @@
-module tea-testing
+module go-todo-tui
 
 go 1.22.2
 
