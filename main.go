@@ -82,6 +82,7 @@ func (m *model) HandleKey(key string) {
 				return
 			}
 			new_todos := make([]string, len(t.choices)-1)
+			delete(t.selected, t.cursor)
 			for i := 0; i < len(t.choices); i++ {
 				if i < t.cursor {
 					new_todos[i] = t.choices[i]
@@ -146,14 +147,13 @@ func format_text(text string, highlight bool) string {
 }
 
 func (m model) View() string {
-	s := ""
-	s += format_text("Todos", m.menu_active == todo_active)
-	s += "|"
-	s += format_text("Add Todos", m.menu_active == add_active) + "\n"
-	s += strings.Repeat("-", HEADER_LEN)
-	s += "\n\n"
+	var str strings.Builder
+	str.WriteString(format_text("Todos", m.menu_active == todo_active))
+	str.WriteByte('|')
+	str.WriteString(format_text("Add Todos", m.menu_active == add_active) + "\n")
+	str.WriteString(strings.Repeat("-", HEADER_LEN) + "\n\n")
 	if m.menu_active == todo_active {
-		s += "What should I do?\n\n"
+		str.WriteString("What should I do?\n\n")
 
 		for i, choice := range m.todo_struct.choices {
 			cursor := " "
@@ -166,24 +166,21 @@ func (m model) View() string {
 				checked = "x"
 			}
 
-			s += fmt.Sprintf("%s [%s] %s\n", cursor, checked, choice)
+			fmt.Fprintf(&str, "%s [%s] %s\n", cursor, checked, choice)
 		}
 		if len(m.todo_struct.choices) == 0 {
-			s += "There is currently nothing to do!!\n"
+			str.WriteString("There is currently nothing to do!!\n")
 		}
 	} else {
-		s += "Add a new todo:\n\n"
-		s += "Input: "
-		s += string(m.add_struct.text)
-		s += "\n"
-		s += strings.Repeat(" ", m.add_struct.text_length)
-		s += "^\n"
+		str.WriteString("Add a new todo:\n\n" + "Input: ")
+		str.WriteString(string(m.add_struct.text))
+		fmt.Fprintf(&str, "\n%s^\n", strings.Repeat(" ", m.add_struct.text_length))
 		if len(m.add_struct.text) > 0 {
-			s += "Press `enter` to add todo\n"
+			str.WriteString("Press `enter` to add todo\n")
 		}
 	}
-	s += "\nPress `ctrl+q` to quit\n"
-	return s
+	str.WriteString("\nPress `ctrl+q` to quit\n")
+	return str.String()
 }
 
 func (m *model) get_lines() {
