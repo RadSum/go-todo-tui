@@ -10,43 +10,43 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type todo_menu struct {
+type todoMenu struct {
 	choices  []string
 	cursor   int
 	selected map[int]struct{}
 }
 
-type add_menu struct {
-	text            []rune
-	text_length     int
-	cursor_position int
+type addMenu struct {
+	text           []rune
+	textLength     int
+	cursorPosition int
 }
 
-type active_menu = int
+type activeMenu = int
 
-const todo_active active_menu = 0
-const add_active active_menu = 1
+const todoActive activeMenu = 0
+const addActive activeMenu = 1
 
 const HEADER_LEN int = 35
 
 type model struct {
-	menu_active active_menu
-	todo_struct *todo_menu
-	add_struct  *add_menu
-	filename    string
+	menuActive activeMenu
+	todoStruct *todoMenu
+	addStruct  *addMenu
+	filename   string
 }
 
-func InitialTodoMenu() *todo_menu {
-	return &todo_menu{
+func InitialTodoMenu() *todoMenu {
+	return &todoMenu{
 		selected: make(map[int]struct{}),
 	}
 }
 
 func InitialModel() model {
 	return model{
-		menu_active: todo_active,
-		todo_struct: InitialTodoMenu(),
-		add_struct:  &add_menu{text: []rune{}, text_length: 0},
+		menuActive: todoActive,
+		todoStruct: InitialTodoMenu(),
+		addStruct:  &addMenu{text: []rune{}, textLength: 0},
 	}
 }
 
@@ -54,85 +54,87 @@ func (m model) Init() tea.Cmd {
 	return nil
 }
 
-func (m *model) HandleKey(key string) {
-	if m.menu_active == todo_active {
-		t := m.todo_struct
-		switch key {
-		case "up", "k":
-			if t.cursor > 0 {
-				t.cursor--
-			}
+func (t *todoMenu) handleKey(key string) {
+	switch key {
+	case "up", "k":
+		if t.cursor > 0 {
+			t.cursor--
+		}
 
-		case "down", "j":
-			if t.cursor < len(t.choices)-1 {
-				t.cursor++
-			}
+	case "down", "j":
+		if t.cursor < len(t.choices)-1 {
+			t.cursor++
+		}
 
-		case "enter", " ":
-			_, ok := t.selected[t.cursor]
-			if ok {
-				delete(t.selected, t.cursor)
-			} else {
-				t.selected[t.cursor] = struct{}{}
-			}
-
-		case "delete":
-			if len(t.choices) == 1 {
-				t.choices = []string{}
-				delete(t.selected, 0)
-				return
-			}
-			new_todos := make([]string, len(t.choices)-1)
+	case "enter", " ":
+		_, ok := t.selected[t.cursor]
+		if ok {
 			delete(t.selected, t.cursor)
-			for i := 0; i < len(t.choices); i++ {
-				if i < t.cursor {
-					new_todos[i] = t.choices[i]
-				}
-				if i > t.cursor {
-					new_todos[i-1] = t.choices[i]
-					if _, ok := t.selected[i]; ok {
-						t.selected[i-1] = struct{}{}
-					}
-					delete(t.selected, i)
-				}
-			}
-			t.choices = new_todos
-			t.cursor = max(t.cursor-1, 0)
-		}
-	} else {
-		if key == "left" {
-			if m.add_struct.cursor_position > 0 {
-				m.add_struct.cursor_position--
-			}
-		}
-		if key == "right" {
-			if m.add_struct.cursor_position < m.add_struct.text_length {
-				m.add_struct.cursor_position++
-			}
+		} else {
+			t.selected[t.cursor] = struct{}{}
 		}
 
-		if key == "enter" && len(m.add_struct.text) > 0 {
-			m.todo_struct.choices = append(m.todo_struct.choices, strings.TrimRight(string(m.add_struct.text), " "))
-			m.add_struct.text = []rune{}
-			m.add_struct.text_length = 0
-			m.add_struct.cursor_position = 0
+	case "delete":
+		if len(t.choices) == 1 {
+			t.choices = []string{}
+			delete(t.selected, 0)
+			return
 		}
+		new_todos := make([]string, len(t.choices)-1)
+		delete(t.selected, t.cursor)
+		for i := 0; i < len(t.choices); i++ {
+			if i < t.cursor {
+				new_todos[i] = t.choices[i]
+			}
+			if i > t.cursor {
+				new_todos[i-1] = t.choices[i]
+				if _, ok := t.selected[i]; ok {
+					t.selected[i-1] = struct{}{}
+				}
+				delete(t.selected, i)
+			}
+		}
+		t.choices = new_todos
+		t.cursor = max(t.cursor-1, 0)
+	}
+}
 
-		if (key == "backspace" || key == "delete") && len(m.add_struct.text) > 0 {
-			if m.add_struct.cursor_position == m.add_struct.text_length {
-				m.add_struct.text = m.add_struct.text[:m.add_struct.text_length-1]
-				m.add_struct.text_length--
-				m.add_struct.cursor_position--
-				return
-			}
-			before := m.add_struct.text[:m.add_struct.cursor_position]
-			after := m.add_struct.text[m.add_struct.cursor_position+1:]
-			m.add_struct.text = append(before, after...)
-			m.add_struct.text_length--
-			if m.add_struct.cursor_position > 0 {
-				m.add_struct.cursor_position--
-			}
+func (a *addMenu) handleKey(key string, m *todoMenu) {
+	switch key {
+	case "left":
+		if a.cursorPosition > 0 {
+			a.cursorPosition--
 		}
+	case "right":
+		if a.cursorPosition < a.textLength {
+			a.cursorPosition++
+		}
+	case "enter":
+		if len(a.text) == 0 {
+			return
+		}
+		m.choices = append(m.choices, strings.TrimRight(string(a.text), " "))
+		a.text = []rune{}
+		a.textLength = 0
+		a.cursorPosition = 0
+	case "backspace", "delete":
+		if len(a.text) == 0 {
+			return
+		}
+		if a.cursorPosition == a.textLength {
+			a.text = a.text[:a.textLength-1]
+			a.textLength--
+			a.cursorPosition--
+			return
+		}
+		before := a.text[:a.cursorPosition]
+		after := a.text[a.cursorPosition+1:]
+		a.text = append(before, after...)
+		a.textLength--
+		if a.cursorPosition > 0 {
+			a.cursorPosition--
+		}
+	default:
 		runes := []rune(key)
 		if len(runes) > 1 {
 			return
@@ -141,16 +143,22 @@ func (m *model) HandleKey(key string) {
 		if !unicode.IsGraphic(first_char) {
 			return
 		}
-		before := make([]rune, m.add_struct.cursor_position)
-		copy(before, m.add_struct.text[:m.add_struct.cursor_position])
-		after := m.add_struct.text[m.add_struct.cursor_position:]
+		before := make([]rune, a.cursorPosition)
+		copy(before, a.text[:a.cursorPosition])
+		after := a.text[a.cursorPosition:]
 		before = append(before, first_char)
 		before = append(before, after...)
-		m.add_struct.text = before
-		if m.add_struct.cursor_position == m.add_struct.text_length {
-			m.add_struct.cursor_position++
-		}
-		m.add_struct.text_length++
+		a.text = before
+		a.cursorPosition++
+		a.textLength++
+	}
+}
+
+func (m *model) HandleKey(key string) {
+	if m.menuActive == todoActive {
+		m.todoStruct.handleKey(key)
+	} else {
+		m.addStruct.handleKey(key, m.todoStruct)
 	}
 }
 
@@ -159,10 +167,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "ctrl+q":
-			m.write_lines()
+			m.writeLines()
 			return m, tea.Quit
 		case "tab":
-			m.menu_active ^= 1
+			m.menuActive ^= 1
 			return m, nil
 		default:
 			m.HandleKey(msg.String())
@@ -171,7 +179,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func format_text(text string, highlight bool) string {
+func formatText(text string, highlight bool) string {
 	if highlight {
 		return fmt.Sprintf("%s     %s     %s", "\x1b[7m", text, "\x1b[27m")
 	}
@@ -180,34 +188,34 @@ func format_text(text string, highlight bool) string {
 
 func (m model) View() string {
 	var str strings.Builder
-	str.WriteString(format_text("Todos", m.menu_active == todo_active))
+	str.WriteString(formatText("Todos", m.menuActive == todoActive))
 	str.WriteByte('|')
-	str.WriteString(format_text("Add Todos", m.menu_active == add_active) + "\n")
+	str.WriteString(formatText("Add Todos", m.menuActive == addActive) + "\n")
 	str.WriteString(strings.Repeat("-", HEADER_LEN) + "\n\n")
-	if m.menu_active == todo_active {
+	if m.menuActive == todoActive {
 		str.WriteString("What should I do?\n\n")
 
-		for i, choice := range m.todo_struct.choices {
+		for i, choice := range m.todoStruct.choices {
 			cursor := " "
-			if m.todo_struct.cursor == i {
+			if m.todoStruct.cursor == i {
 				cursor = ">"
 			}
 
 			checked := " "
-			if _, ok := m.todo_struct.selected[i]; ok {
+			if _, ok := m.todoStruct.selected[i]; ok {
 				checked = "x"
 			}
 
 			fmt.Fprintf(&str, "%s [%s] %s\n", cursor, checked, choice)
 		}
-		if len(m.todo_struct.choices) == 0 {
+		if len(m.todoStruct.choices) == 0 {
 			str.WriteString("There is currently nothing to do!!\n")
 		}
 	} else {
 		str.WriteString("Add a new todo:\n\n" + "Input: ")
-		str.WriteString(string(m.add_struct.text))
-		fmt.Fprintf(&str, "\n%s^\n", strings.Repeat(" ", len("Input: ")+m.add_struct.cursor_position))
-		if len(m.add_struct.text) > 0 {
+		str.WriteString(string(m.addStruct.text))
+		fmt.Fprintf(&str, "\n%s^\n", strings.Repeat(" ", len("Input: ")+m.addStruct.cursorPosition))
+		if len(m.addStruct.text) > 0 {
 			str.WriteString("Press `enter` to add todo\n")
 		}
 	}
@@ -215,29 +223,29 @@ func (m model) View() string {
 	return str.String()
 }
 
-func (m *model) get_lines() {
+func (m *model) getLines() {
 	file, err := os.Open(m.filename)
-	defer file.Close()
 	if err != nil {
 		fmt.Printf("There was an error opening the file: %v\n", err)
 		os.Exit(1)
 	}
+	defer file.Close()
 	result := make([]string, 0)
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		result = append(result, scanner.Text())
 	}
-	m.todo_struct.choices = result
+	m.todoStruct.choices = result
 }
 
-func (m *model) write_lines() {
+func (m *model) writeLines() {
 	file, err := os.Create(m.filename + "_tmp")
-	defer file.Close()
 	if err != nil {
 		fmt.Printf("Error while writing to the file: %v", err)
 		os.Exit(1)
 	}
-	for _, line := range m.todo_struct.choices {
+	defer file.Close()
+	for _, line := range m.todoStruct.choices {
 		fmt.Fprintln(file, line)
 	}
 	err = os.Rename(m.filename+"_tmp", m.filename)
@@ -257,7 +265,7 @@ func main() {
 	filename := args[0]
 	model := InitialModel()
 	model.filename = filename
-	model.get_lines()
+	model.getLines()
 	p := tea.NewProgram(model)
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("There has been an error: %v", err)
