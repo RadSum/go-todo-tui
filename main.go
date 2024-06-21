@@ -17,8 +17,9 @@ type todo_menu struct {
 }
 
 type add_menu struct {
-	text        []rune
-	text_length int
+	text            []rune
+	text_length     int
+	cursor_position int
 }
 
 type active_menu = int
@@ -45,7 +46,7 @@ func InitialModel() model {
 	return model{
 		menu_active: todo_active,
 		todo_struct: InitialTodoMenu(),
-		add_struct:  &add_menu{text: []rune{}, text_length: len("Input: ")},
+		add_struct:  &add_menu{text: []rune{}, text_length: 0},
 	}
 }
 
@@ -99,15 +100,38 @@ func (m *model) HandleKey(key string) {
 			t.cursor = max(t.cursor-1, 0)
 		}
 	} else {
+		if key == "left" {
+			if m.add_struct.cursor_position > 0 {
+				m.add_struct.cursor_position--
+			}
+		}
+		if key == "right" {
+			if m.add_struct.cursor_position < m.add_struct.text_length {
+				m.add_struct.cursor_position++
+			}
+		}
+
 		if key == "enter" && len(m.add_struct.text) > 0 {
 			m.todo_struct.choices = append(m.todo_struct.choices, strings.TrimRight(string(m.add_struct.text), " "))
 			m.add_struct.text = []rune{}
-			m.add_struct.text_length = len("Input: ")
+			m.add_struct.text_length = 0
+			m.add_struct.cursor_position = 0
 		}
 
 		if (key == "backspace" || key == "delete") && len(m.add_struct.text) > 0 {
-			m.add_struct.text = m.add_struct.text[:len(m.add_struct.text)-1]
+			if m.add_struct.cursor_position == m.add_struct.text_length {
+				m.add_struct.text = m.add_struct.text[:m.add_struct.text_length-1]
+				m.add_struct.text_length--
+				m.add_struct.cursor_position--
+				return
+			}
+			before := m.add_struct.text[:m.add_struct.cursor_position]
+			after := m.add_struct.text[m.add_struct.cursor_position+1:]
+			m.add_struct.text = append(before, after...)
 			m.add_struct.text_length--
+			if m.add_struct.cursor_position > 0 {
+				m.add_struct.cursor_position--
+			}
 		}
 		runes := []rune(key)
 		if len(runes) > 1 {
@@ -117,7 +141,15 @@ func (m *model) HandleKey(key string) {
 		if !unicode.IsGraphic(first_char) {
 			return
 		}
-		m.add_struct.text = append(m.add_struct.text, first_char)
+		before := make([]rune, m.add_struct.cursor_position)
+		copy(before, m.add_struct.text[:m.add_struct.cursor_position])
+		after := m.add_struct.text[m.add_struct.cursor_position:]
+		before = append(before, first_char)
+		before = append(before, after...)
+		m.add_struct.text = before
+		if m.add_struct.cursor_position == m.add_struct.text_length {
+			m.add_struct.cursor_position++
+		}
 		m.add_struct.text_length++
 	}
 }
@@ -174,7 +206,7 @@ func (m model) View() string {
 	} else {
 		str.WriteString("Add a new todo:\n\n" + "Input: ")
 		str.WriteString(string(m.add_struct.text))
-		fmt.Fprintf(&str, "\n%s^\n", strings.Repeat(" ", m.add_struct.text_length))
+		fmt.Fprintf(&str, "\n%s^\n", strings.Repeat(" ", len("Input: ")+m.add_struct.cursor_position))
 		if len(m.add_struct.text) > 0 {
 			str.WriteString("Press `enter` to add todo\n")
 		}
